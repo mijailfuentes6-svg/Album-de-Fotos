@@ -1,0 +1,11 @@
+services:
+  nexus-vision:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mapeo del código fuente (funciona en ambos OS)
+      - .:/app
+      # Mapeo dinámico de la base de datos de imágenes
+      - ${PHOTOS_PATH:-./data}:/data/pictures
+    restart: always
