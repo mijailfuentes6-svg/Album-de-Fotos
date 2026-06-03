@@ -123,3 +123,4 @@ def cluster_images(directory, num_clusters=3):
         clusters[cluster_name].append(path)
         
     return clusters
+

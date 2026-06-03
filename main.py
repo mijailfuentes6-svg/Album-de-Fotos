@@ -1,17 +1,19 @@
-﻿from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File
+﻿from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File, Body
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 import os
 import shutil
+import io
+import zipfile
 from typing import List
 
-# Importamos la lógica de tu motor de IA
+# Importamos la lógica del motor de IA
 from ml_engine import cluster_images
 from train_model import train
 
-app = FastAPI(title="Nexus Vision API", description="Motor de clustering no supervisado")
+app = FastAPI(title="Álbum de Fotos API", description="Motor de clustering no supervisado")
 
 # Configuración del Sistema de Archivos
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -50,6 +52,7 @@ async def serve_frontend():
 @app.post("/api/upload")
 async def upload_images(files: List[UploadFile] = File(...)):
     try:
+        # Limpiamos el directorio antes de un nuevo entrenamiento
         for filename in os.listdir(UPLOAD_DIR):
             file_path = os.path.join(UPLOAD_DIR, filename)
             if os.path.isfile(file_path):
@@ -90,3 +93,36 @@ async def get_image(path: str):
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="Imagen no encontrada")
     return FileResponse(path)
+
+# ==========================================
+# ENDPOINT: DESCARGA DE ÁLBUMES (ZIP)
+# ==========================================
+@app.post("/api/download-zip")
+async def download_albums_zip(albums: dict = Body(...)):
+    """
+    Recibe el JSON estructurado de los clústeres desde el frontend y empaqueta
+    las imágenes en un archivo ZIP estructurado por carpetas en la memoria RAM.
+    """
+    try:
+        zip_buffer = io.BytesIO()
+        
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            for album_name, photos in albums.items():
+                for photo_item in photos:
+                    # Extraemos el nombre base por si el frontend envía la ruta completa
+                    filename = os.path.basename(photo_item)
+                    file_path = os.path.join(UPLOAD_DIR, filename)
+                    
+                    if os.path.exists(file_path):
+                        # arcname define la estructura interna dentro del ZIP
+                        zip_file.write(file_path, arcname=f"{album_name}/{filename}")
+        
+        zip_buffer.seek(0)
+        
+        return StreamingResponse(
+            zip_buffer, 
+            media_type="application/zip", 
+            headers={"Content-Disposition": "attachment; filename=albumes_agrupados.zip"}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generando el archivo ZIP: {str(e)}")

@@ -6,6 +6,7 @@ createApp({
             activeTab: 'phase1',
             numClusters: 3,
             loading: false,
+            isDownloading: false, // Variable añadida para bloquear el botón de descarga
             uploading: false,
             uploadSuccessTrain: false,
             uploadSuccessInference: false,
@@ -300,6 +301,52 @@ createApp({
                 .catch(error => {
                     this.addLog("Fallo de conexión al servidor de IA.", "error");
                 });
+        },
+
+        async descargarZip() {
+            if (Object.keys(this.clusters).length === 0) {
+                alert("Primero debes ejecutar el algoritmo K-Means para generar los álbumes.");
+                return;
+            }
+
+            // Bloqueamos el botón y mostramos el estado de carga
+            this.isDownloading = true; 
+            this.addLog("Comprimiendo álbumes en memoria...", "warning");
+
+            try {
+                const response = await fetch('http://localhost:8000/api/download-zip', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(this.clusters) 
+                });
+
+                if (!response.ok) throw new Error("Error en el servidor al generar el ZIP");
+
+                const blob = await response.blob();
+                
+                // Creación de URL temporal para forzar la descarga en el navegador
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = "albumes_agrupados.zip";
+                document.body.appendChild(a);
+                a.click();
+                
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+                this.addLog("Álbumes descargados con éxito.", "success");
+
+            } catch (error) {
+                console.error("Error en la descarga:", error);
+                this.addLog("Fallo al descargar el archivo ZIP.", "error");
+                alert("Hubo un problema al intentar descargar los álbumes. Verifica la conexión con el servidor.");
+            } finally {
+                // Desbloqueamos el botón garantizado, sin importar si falló o no
+                this.isDownloading = false; 
+            }
         }
     }
 }).mount('#app');
