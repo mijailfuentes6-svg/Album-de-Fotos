@@ -16,8 +16,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copiamos el archivo de requerimientos primero para aprovechar el cache de capas
 COPY requirements.txt .
 
-# Instalamos las librerías de Python (esto incluirá PyTorch y FastAPI)
-RUN pip install --no-cache-dir -r requirements.txt
+# Instalamos PyTorch primero (es muy pesado, necesita más tiempo)
+RUN pip install --no-cache-dir --timeout=1000 --retries=10 torch torchvision
+
+# Instalamos el resto de dependencias
+RUN pip install --no-cache-dir --timeout=300 fastapi uvicorn scikit-learn pillow pydantic python-multipart
 
 # Copiamos todo el código del proyecto (main.py, ml_engine.py, static/, etc.)
 COPY . .
